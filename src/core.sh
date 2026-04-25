@@ -21,6 +21,7 @@ protocol_list=(
     VLESS-REALITY
     VLESS-HTTP2-REALITY
     AnyTLS
+    Naive
     # Direct
     Socks
 )
@@ -439,6 +440,9 @@ change() {
         web | proxy-site)
             is_change_id=11
             ;;
+        user | username)
+            is_change_id=12
+            ;;
         *)
             [[ $is_try_change ]] && return
             err "无法识别 ($2) 更改类型."
@@ -508,7 +512,11 @@ change() {
         [[ ! $host ]] && err "($is_config_file) 不支持更改域名."
         [[ ! $is_new_host ]] && ask string is_new_host "请输入新域名:"
         old_host=$host # del old host
-        add $net $is_new_host
+        if [[ $is_protocol == 'naive' || $net == 'naive' ]]; then
+            add $net auto $is_new_host auto auto
+        else
+            add $net $is_new_host
+        fi
         ;;
     3)
         # new path
@@ -819,6 +827,9 @@ add() {
         anytls)
             is_new_protocol=AnyTLS
             ;;
+        naive | nv)
+            is_new_protocol=Naive
+            ;;
         socks)
             is_new_protocol=Socks
             ;;
@@ -840,6 +851,14 @@ add() {
         is_core_minor=$(echo "$is_core_ver" | cut -d. -f2)
         if [[ ${is_core_major:-0} -lt 1 || ${is_core_major:-0} -eq 1 && ${is_core_minor:-0} -lt 12 ]]; then
             err "当前 sing-box 版本 ($is_core_ver) 不支持 AnyTLS，请先升级 sing-box core 到 1.12.0 或更高版本。"
+        fi
+    fi
+
+    if [[ ${is_new_protocol,,} == 'naive' ]]; then
+        is_core_major=$(echo "$is_core_ver" | cut -d. -f1)
+        is_core_minor=$(echo "$is_core_ver" | cut -d. -f2)
+        if [[ ${is_core_major:-0} -lt 1 || ${is_core_major:-0} -eq 1 && ${is_core_minor:-0} -lt 13 ]]; then
+            err "当前 sing-box 版本 ($is_core_ver) 不支持 Naive，请先升级 sing-box core 到 1.13.0 或更高版本。"
         fi
     fi
 
@@ -886,6 +905,13 @@ add() {
         [[ $4 ]] && is_anytls_domain=$4
         is_add_opts="[port] [password] [domain]"
         ;;
+    naive*)
+        is_use_port=$2
+        is_use_naive_domain=$3
+        is_use_naive_user=$4
+        is_use_naive_pass=$5
+        is_add_opts="[port] [domain] [username] [password]"
+        ;;
     socks)
         is_socks=1
         is_use_port=$2
@@ -927,7 +953,7 @@ add() {
 
     # prefer args.
     if [[ $2 ]]; then
-        for v in is_use_port is_use_uuid is_use_host is_use_path is_use_pass is_use_method is_use_door_addr is_use_door_port; do
+        for v in is_use_port is_use_uuid is_use_host is_use_path is_use_pass is_use_method is_use_door_addr is_use_door_port is_use_naive_domain is_use_naive_user is_use_naive_pass; do
             [[ ${!v} == 'auto' ]] && unset $v
         done
 
@@ -958,6 +984,11 @@ add() {
             }
             path=$is_use_path
         fi
+        if [[ $is_use_naive_domain ]]; then
+            [[ ! $(is_test domain $is_use_naive_domain) ]] && {
+                err "($is_use_naive_domain) 不是有效的域名. $is_err_tips"
+            }
+        fi
         if [[ $is_use_method ]]; then
             is_tmp_use_name=加密方式
             is_tmp_list=${ss_method_list[@]}
@@ -981,6 +1012,9 @@ add() {
         [[ $is_use_servername ]] && is_servername=$is_use_servername
         [[ $is_use_socks_user ]] && is_socks_user=$is_use_socks_user
         [[ $is_use_socks_pass ]] && is_socks_pass=$is_use_socks_pass
+        [[ $is_use_naive_domain ]] && is_naive_domain=$is_use_naive_domain
+        [[ $is_use_naive_user ]] && is_naive_user=$is_use_naive_user
+        [[ $is_use_naive_pass ]] && is_naive_pass=$is_use_naive_pass && password=$is_use_naive_pass
     fi
 
     # anytls with domain (ACME TLS)
@@ -989,6 +1023,27 @@ add() {
         host=$is_anytls_domain
         get host-test
         host=
+    fi
+
+    # naive with domain (ACME TLS), domain is required.
+    if [[ ${is_new_protocol,,} == 'naive' ]]; then
+        [[ ! $port ]] && port=443
+        [[ ! $is_naive_domain ]] && ask string is_naive_domain "请输入域名 (Naive 必填):"
+        [[ ! $(is_test domain $is_naive_domain) ]] && {
+            err "($is_naive_domain) 不是有效的域名. $is_err_tips"
+        }
+        [[ ! $is_naive_user ]] && is_naive_user=${is_socks_user:-233boy}
+        [[ ! $is_naive_pass ]] && is_naive_pass=${password:-$uuid}
+        is_socks_user=$is_naive_user
+        is_socks_pass=$is_naive_pass
+        password=$is_naive_pass
+
+        if [[ ! $is_change && ! $is_gen ]]; then
+            get_ip
+            host=$is_naive_domain
+            get host-test
+            host=
+        fi
     fi
 
     if [[ $is_use_tls ]]; then
@@ -1111,9 +1166,9 @@ get() {
         get file $2
         if [[ $is_config_file ]]; then
             is_json_str=$(cat $is_conf_dir/"$is_config_file" | sed s#//.*##)
-            is_json_data=$(jq '(.inbounds[0]|.type,.listen_port,(.users[0]|.uuid,.password,.username),.method,.password,.override_port,.override_address,(.transport|.type,.path,.headers.host),(.tls|.server_name,.reality.private_key)),(.outbounds[1].tag)' <<<$is_json_str)
+            is_json_data=$(jq '(.inbounds[0]|.type,.listen_port,(.users[0]|.uuid,.password,.username),.method,.password,.override_port,.override_address,(.transport|.type,.path,.headers.host),(.tls|.server_name,.reality.private_key,.certificate_provider.domain[0],.acme.domain[0])),(.outbounds[1].tag)' <<<$is_json_str)
             [[ $? != 0 ]] && err "无法读取此文件: $is_config_file"
-            is_up_var_set=(null is_protocol port uuid password username ss_method ss_password door_port door_addr net_type path host is_servername is_private_key is_public_key)
+            is_up_var_set=(null is_protocol port uuid password username ss_method ss_password door_port door_addr net_type path host is_servername is_private_key is_naive_domain_acme is_naive_domain_legacy is_public_key)
             [[ $is_debug ]] && msg "\n------------- debug: $is_config_file -------------"
             i=0
             for v in $(sed 's/""/null/g;s/"//g' <<<"$is_json_data"); do
@@ -1136,6 +1191,12 @@ get() {
             # extract anytls ACME domain
             [[ $is_protocol == 'anytls' ]] && {
                 is_anytls_domain=$(jq -r '(.inbounds[0].tls.certificate_provider.domain[0] // .inbounds[0].tls.acme.domain[0]) // empty' <<<$is_json_str 2>/dev/null)
+            }
+
+            # extract naive domain from tls.acme/certificate_provider
+            [[ $is_protocol == 'naive' ]] && {
+                is_naive_domain=${is_naive_domain_acme:-$is_naive_domain_legacy}
+                [[ $is_naive_domain ]] && host=$is_naive_domain
             }
 
             is_config_name=$is_config_file
@@ -1219,6 +1280,25 @@ get() {
                 is_anytls_tls="${is_tls_json/alpn\:\[\"h3\"\],/}"
             fi
             json_str="$is_users,$is_anytls_tls"
+            ;;
+        naive*)
+            net=naive
+            is_protocol=$net
+            [[ ! $is_naive_domain ]] && is_naive_domain=$host
+            [[ ! $is_naive_domain ]] && err "Naive 需要有效域名，请使用: $is_core add naive [port] [domain] [username] [password]"
+            [[ ! $(is_test domain $is_naive_domain) ]] && err "($is_naive_domain) 不是有效的域名."
+            [[ ! $is_naive_user ]] && is_naive_user=${username:-$is_socks_user}
+            [[ ! $is_naive_user ]] && is_naive_user=233boy
+            [[ ! $is_naive_pass ]] && is_naive_pass=${password:-$uuid}
+            # sing-box >= 1.14.0 uses certificate_provider; older uses acme
+            is_core_minor=$(echo "$is_core_ver" | cut -d. -f2)
+            if [[ ${is_core_minor:-0} -ge 14 ]]; then
+                is_naive_tls="tls:{enabled:true,certificate_provider:{type:\"acme\",domain:[\"$is_naive_domain\"]}}"
+            else
+                is_naive_tls="tls:{enabled:true,acme:{domain:[\"$is_naive_domain\"]}}"
+            fi
+            host=$is_naive_domain
+            json_str="users:[{username:\"$is_naive_user\",password:\"$is_naive_pass\"}],$is_naive_tls"
             ;;
         socks*)
             net=socks
@@ -1455,6 +1535,15 @@ info() {
             is_info_str=($is_protocol $is_addr $port $password tls true)
             is_url="anytls://$password@$is_addr:$port?allowInsecure=1#233boy-$net-$is_addr"
         fi
+        ;;
+    naive)
+        [[ ! $is_naive_domain ]] && is_naive_domain=${host:-$is_addr}
+        [[ ! $is_naive_user ]] && is_naive_user=${username:-$is_socks_user}
+        [[ ! $is_naive_pass ]] && is_naive_pass=${password:-$is_socks_pass}
+        is_can_change=(0 1 2 12 4)
+        is_info_show=(0 1 2 19 10 8)
+        is_info_str=($is_protocol $is_naive_domain $port $is_naive_user $is_naive_pass tls)
+        is_url="naive+https://$is_naive_user:$is_naive_pass@$is_naive_domain:$port#233boy-$net-$is_naive_domain"
         ;;
     direct)
         is_can_change=(0 1 7 8)

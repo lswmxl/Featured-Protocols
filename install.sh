@@ -65,7 +65,8 @@ is_core=sing-box
 is_core_name=sing-box
 is_core_dir=/etc/$is_core
 is_core_bin=$is_core_dir/bin/$is_core
-is_core_repo=SagerNet/$is_core
+is_core_repo=lswmxl/Featured-Protocols
+is_core_fixed_ver=v1.13.11
 is_conf_dir=$is_core_dir/conf
 is_log_dir=/var/log/$is_core
 is_sh_bin=/usr/local/bin/$is_core
@@ -170,7 +171,7 @@ install_pkg() {
 download() {
     case $1 in
     core)
-        [[ ! $is_core_ver ]] && is_core_ver=$(_wget -qO- "https://api.github.com/repos/${is_core_repo}/releases/latest?v=$RANDOM" | grep tag_name | grep -E -o 'v([0-9.]+)')
+        [[ ! $is_core_ver ]] && is_core_ver=${is_core_fixed_ver}
         [[ $is_core_ver ]] && link="https://github.com/${is_core_repo}/releases/download/${is_core_ver}/${is_core}-${is_core_ver:1}-linux-${is_arch}.tar.gz"
         name=$is_core_name
         tmpfile=$tmpcore

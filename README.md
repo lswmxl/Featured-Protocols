@@ -17,6 +17,7 @@
 - 一键添加 Trojan
 - 一键添加 Hysteria2
 - 一键添加 AnyTLS
+- 一键添加 Naive (需域名)
 - 一键添加 Shadowsocks 2022
 - 一键添加 VMess-(TCP/HTTP/QUIC)
 - 一键添加 VMess-(WS/H2/HTTPUpgrade)-TLS
