@@ -315,9 +315,21 @@ exit_and_del_tmpdir() {
 main() {
 
     # check old version
-    [[ -f $is_sh_bin && -d $is_core_dir/bin && -d $is_sh_dir && -d $is_conf_dir ]] && {
-        err "检测到脚本已安装, 如需重装请使用${green} ${is_core} reinstall ${none}命令."
-    }
+    if [[ -f $is_sh_bin && -d $is_core_dir/bin && -d $is_sh_dir && -d $is_conf_dir ]]; then
+        echo
+        warn "检测到脚本已安装."
+        read -r -p "是否强行覆盖安装? [y/N]: " is_force_overwrite
+        case ${is_force_overwrite,,} in
+        y | yes)
+            msg warn "已确认强制覆盖, 继续安装..."
+            ;;
+        *)
+            echo
+            msg warn "已取消操作. 如需重装可执行: ${green}${is_core} reinstall${none}"
+            exit 0
+            ;;
+        esac
+    fi
 
     # check parameters
     [[ $# -gt 0 ]] && pass_args $@
