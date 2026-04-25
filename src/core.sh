@@ -726,9 +726,7 @@ uninstall() {
         fi
     fi
     [[ $is_install_sh ]] && return # reinstall
-    _green "\n卸载完成!"
-    msg "脚本哪里需要完善? 请反馈"
-    msg "反馈问题) $(msg_ul https://github.com/${is_sh_repo}/issues)\n"
+    _green "\n卸载完成!\n"
 }
 
 # manage run status
@@ -1069,7 +1067,7 @@ add() {
                 get_port
                 is_https_port=$tmp_port
                 warn "端口 (80 或 443) 已经被占用, 你也可以考虑使用 no-auto-tls"
-                msg "\e[41m no-auto-tls 帮助(help)\e[0m: $(msg_ul https://233boy.com/$is_core/no-auto-tls/)\n"
+                msg "\e[41m no-auto-tls 帮助(help)\e[0m: no-auto-tls 模式下请自行提供有效证书配置\n"
                 msg "\n Caddy 将使用非标准端口实现自动配置 TLS, HTTP:$is_http_port HTTPS:$is_https_port\n"
                 msg "请确定是否继续???"
                 pause
@@ -1586,7 +1584,7 @@ info() {
         msg "$a $tt= \e[${is_color}m${is_info_str[$i]}\e[0m"
     done
     if [[ $is_new_install ]]; then
-        warn "首次安装请查看脚本帮助文档: $(msg_ul https://233boy.com/$is_core/$is_core-script/)"
+        warn "首次安装请使用: $is_core help 查看帮助"
     fi
     if [[ $is_url ]]; then
         msg "------------- ${info_list[12]} -------------"
@@ -1599,7 +1597,7 @@ info() {
         msg "------------- no-auto-tls INFO -------------"
         msg "端口(port): $port"
         msg "路径(path): $path"
-        msg "\e[41m帮助(help)\e[0m: $(msg_ul https://233boy.com/$is_core/no-auto-tls/)"
+        msg "\e[41m帮助(help)\e[0m: no-auto-tls 模式下请自行提供有效证书配置"
     fi
     footer_msg
 }
@@ -1608,13 +1606,8 @@ info() {
 footer_msg() {
     [[ $is_core_stop && ! $is_new_json ]] && warn "$is_core_name 当前处于停止状态."
     [[ $is_caddy_stop && $host ]] && warn "Caddy 当前处于停止状态."
-    ####### 要点13脸吗只会改我链接的小人 #######
-    unset c n m s b
     msg "------------- END -------------"
-    msg "关注(tg): $(msg_ul https://t.me/tg2333)"
-    msg "文档(doc): $(msg_ul https://233boy.com/$is_core/$is_core-script/)"
-    msg "推广(ads): 机场推荐($is_core_name services): $(msg_ul https://g${c}e${n}t${m}j${s}m${b}s.com/)\n"
-    ####### 要点13脸吗只会改我链接的小人 #######
+    msg
 }
 
 # URL or qrcode
@@ -1702,7 +1695,6 @@ update() {
 is_main_menu() {
     msg "\n------------- $is_core_name script $is_sh_ver by $author -------------"
     msg "$is_core_name $is_core_ver: $is_core_status"
-    msg "群组(Chat): $(msg_ul https://t.me/tg233boy)"
     is_main_start=1
     ask mainmenu
     case $REPLY in
