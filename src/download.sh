@@ -6,14 +6,20 @@ get_latest_version() {
         ;;
     sh)
         name="$is_core_name 脚本"
-        url="https://api.github.com/repos/$is_sh_repo/releases/latest?v=$RANDOM"
+        url="https://api.github.com/repos/$is_sh_repo/commits/${is_sh_ref}?v=$RANDOM"
         ;;
     caddy)
         name="Caddy"
         url="https://api.github.com/repos/$is_caddy_repo/releases/latest?v=$RANDOM"
         ;;
     esac
-    [[ ! $latest_ver ]] && latest_ver=$(_wget -qO- $url | grep tag_name | grep -E -o 'v([0-9.]+)')
+    [[ ! $latest_ver ]] && {
+        if [[ $1 == 'sh' ]]; then
+            latest_ver=$is_sh_ref
+        else
+            latest_ver=$(_wget -qO- $url | grep tag_name | grep -E -o 'v([0-9.]+)')
+        fi
+    }
     [[ ! $latest_ver ]] && {
         err "获取 ${name} 最新版本失败."
     }
@@ -40,9 +46,9 @@ download() {
     sh)
         name="$is_core_name 脚本"
         tmpfile=$tmpdir/sh.tar.gz
-        link="https://github.com/${is_sh_repo}/releases/download/${latest_ver}/code.tar.gz"
+        link="https://codeload.github.com/${is_sh_repo}/tar.gz/refs/heads/${latest_ver}"
         download_file
-        tar zxf $tmpfile -C $is_sh_dir
+        tar zxf $tmpfile --strip-components 1 -C $is_sh_dir
         chmod +x $is_sh_bin ${is_sh_bin/$is_core/sb}
         ;;
     caddy)
