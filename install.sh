@@ -65,9 +65,14 @@ is_core=sing-box
 is_core_name=sing-box
 is_core_dir=/etc/$is_core
 is_core_bin=$is_core_dir/bin/$is_core
-is_core_repo=lswmxl/Featured-Protocols
-is_core_fixed_ver=v1.13.11
-is_core_assets_ref=main
+is_core_repo_local=lswmxl/Featured-Protocols
+is_core_fixed_ver_local=v1.13.11
+is_core_assets_ref_local=main
+is_core_repo_official=SagerNet/sing-box
+is_core_repo=$is_core_repo_local
+is_core_fixed_ver=$is_core_fixed_ver_local
+is_core_assets_ref=$is_core_assets_ref_local
+is_core_channel=local_stable
 is_conf_dir=$is_core_dir/conf
 is_log_dir=/var/log/$is_core
 is_sh_bin=/usr/local/bin/$is_core
@@ -138,6 +143,38 @@ show_help() {
     exit 0
 }
 
+select_core_channel() {
+    [[ $is_core_file || $is_core_ver ]] && return
+
+    echo
+    echo "请选择 ${is_core_name} 安装版本:"
+    echo "  1) 本地稳定版 (${is_core_fixed_ver_local})"
+    echo "  2) 官方最新版 (SagerNet/sing-box)"
+    read -r -p "请输入选项 [1/2] (默认 1): " is_core_channel_input
+
+    case ${is_core_channel_input,,} in
+    2)
+        is_core_channel=official_latest
+        is_core_repo=$is_core_repo_official
+        is_core_fixed_ver=
+        is_core_assets_ref=
+        ;;
+    "" | 1)
+        is_core_channel=local_stable
+        is_core_repo=$is_core_repo_local
+        is_core_fixed_ver=$is_core_fixed_ver_local
+        is_core_assets_ref=$is_core_assets_ref_local
+        ;;
+    *)
+        msg warn "无效选项, 默认使用本地稳定版 (${is_core_fixed_ver_local})"
+        is_core_channel=local_stable
+        is_core_repo=$is_core_repo_local
+        is_core_fixed_ver=$is_core_fixed_ver_local
+        is_core_assets_ref=$is_core_assets_ref_local
+        ;;
+    esac
+}
+
 # install dependent pkg
 install_pkg() {
     cmd_not_found=
@@ -172,8 +209,20 @@ install_pkg() {
 download() {
     case $1 in
     core)
-        [[ ! $is_core_ver ]] && is_core_ver=${is_core_fixed_ver}
-        [[ $is_core_ver ]] && link="https://raw.githubusercontent.com/${is_core_repo}/${is_core_assets_ref}/assets/${is_core}-${is_core_ver:1}-linux-${is_arch}.tar.gz"
+        if [[ ! $is_core_ver ]]; then
+            if [[ $is_core_channel == official_latest ]]; then
+                is_core_ver=$(_wget -qO- "https://api.github.com/repos/${is_core_repo_official}/releases/latest?v=$RANDOM" | grep tag_name | grep -E -o 'v([0-9.]+)' | head -n1)
+                [[ ! $is_core_ver ]] && err "获取官方 ${is_core_name} 最新版本失败."
+            else
+                is_core_ver=${is_core_fixed_ver}
+            fi
+        fi
+
+        if [[ $is_core_channel == official_latest ]]; then
+            link="https://github.com/${is_core_repo_official}/releases/download/${is_core_ver}/${is_core}-${is_core_ver:1}-linux-${is_arch}.tar.gz"
+        else
+            link="https://raw.githubusercontent.com/${is_core_repo}/${is_core_assets_ref}/assets/${is_core}-${is_core_ver:1}-linux-${is_arch}.tar.gz"
+        fi
         name=$is_core_name
         tmpfile=$tmpcore
         is_ok=$is_core_ok
@@ -335,6 +384,9 @@ main() {
     # check parameters
     [[ $# -gt 0 ]] && pass_args $@
 
+    # select core install channel
+    select_core_channel
+
     # show welcome msg
     clear
     echo
@@ -343,6 +395,11 @@ main() {
 
     # start installing...
     msg warn "开始安装..."
+    if [[ $is_core_channel == official_latest ]]; then
+        msg warn "安装渠道: ${yellow}官方最新版${none} (${is_core_repo_official})"
+    else
+        msg warn "安装渠道: ${yellow}本地稳定版${none} (${is_core_fixed_ver_local})"
+    fi
     [[ $is_core_ver ]] && msg warn "${is_core_name} 版本: ${yellow}$is_core_ver${none}"
     [[ $proxy ]] && msg warn "使用代理: ${yellow}$proxy${none}"
     # create tmpdir
