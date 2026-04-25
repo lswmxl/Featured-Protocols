@@ -1368,16 +1368,33 @@ get() {
         ;;
     host-test) # test host dns record; for auto *tls required.
         [[ $is_no_auto_tls || $is_gen || $is_dont_test_host ]] && return
-        get_ip
+
+        # 同时兼容 IPv4 / IPv6 解析:
+        # 纯 IPv6 机器上即使有 IPv4 出口，也不应强制要求 A 记录。
+        is_ip4=$(_wget -4 -qO- https://one.one.one.one/cdn-cgi/trace | sed -n 's/^ip=//p')
+        is_ip6=$(_wget -6 -qO- https://one.one.one.one/cdn-cgi/trace | sed -n 's/^ip=//p')
+
         get ping
-        if [[ ! $(grep $ip <<<$is_host_dns) ]]; then
-            msg "\n请将 ($(_red_bg $host)) 解析到 ($(_red_bg $ip))"
+        is_dns_ok=
+        [[ $is_ip4 && $(grep -F "\"data\":\"$is_ip4\"" <<<$is_host_dns_a) ]] && is_dns_ok=1
+        [[ $is_ip6 && $(grep -F "\"data\":\"$is_ip6\"" <<<$is_host_dns_aaaa) ]] && is_dns_ok=1
+
+        if [[ ! $is_dns_ok ]]; then
+            msg "\n请将 ($(_red_bg $host)) 解析到以下任意可达地址:"
+            [[ $is_ip4 ]] && msg "  - A     -> $(_red_bg $is_ip4)"
+            [[ $is_ip6 ]] && msg "  - AAAA  -> $(_red_bg $is_ip6)"
             msg "\n如果使用 Cloudflare, 在 DNS 那; 关闭 (Proxy status / 代理状态), 即是 (DNS only / 仅限 DNS)"
             ask string y "我已经确定解析 [y]:"
+
             get ping
-            if [[ ! $(grep $ip <<<$is_host_dns) ]]; then
-                _cyan "\n测试结果: $is_host_dns"
-                err "域名 ($host) 没有解析到 ($ip)"
+            is_dns_ok=
+            [[ $is_ip4 && $(grep -F "\"data\":\"$is_ip4\"" <<<$is_host_dns_a) ]] && is_dns_ok=1
+            [[ $is_ip6 && $(grep -F "\"data\":\"$is_ip6\"" <<<$is_host_dns_aaaa) ]] && is_dns_ok=1
+
+            if [[ ! $is_dns_ok ]]; then
+                _cyan "\nA 查询结果: $is_host_dns_a"
+                _cyan "AAAA 查询结果: $is_host_dns_aaaa"
+                err "域名 ($host) 没有解析到本机可达的 IPv4/IPv6 地址"
             fi
         fi
         ;;
@@ -1389,12 +1406,10 @@ get() {
         fi
         ;;
     ping)
-        # is_ip_type="-4"
-        # [[ $(grep ":" <<<$ip) ]] && is_ip_type="-6"
-        # is_host_dns=$(ping $host $is_ip_type -c 1 -W 2 | head -1)
-        is_dns_type="a"
-        [[ $(grep ":" <<<$ip) ]] && is_dns_type="aaaa"
-        is_host_dns=$(_wget -qO- --header="accept: application/dns-json" "https://one.one.one.one/dns-query?name=$host&type=$is_dns_type")
+        # 同时查询 A + AAAA, 由 host-test 决定匹配策略
+        is_host_dns_a=$(_wget -qO- --header="accept: application/dns-json" "https://one.one.one.one/dns-query?name=$host&type=a")
+        is_host_dns_aaaa=$(_wget -qO- --header="accept: application/dns-json" "https://one.one.one.one/dns-query?name=$host&type=aaaa")
+        is_host_dns="$is_host_dns_a\n$is_host_dns_aaaa"
         ;;
     install-caddy)
         _green "\n安装 Caddy 实现自动配置 TLS.\n"
