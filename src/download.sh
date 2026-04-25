@@ -32,7 +32,7 @@ download() {
     core)
         name=$is_core_name
         tmpfile=$tmpdir/$is_core.tar.gz
-        link="https://github.com/${is_core_repo}/releases/download/${latest_ver}/${is_core}-${latest_ver:1}-linux-${is_arch}.tar.gz"
+        link="https://raw.githubusercontent.com/${is_core_repo}/${is_core_assets_ref}/assets/${is_core}-${latest_ver:1}-linux-${is_arch}.tar.gz"
         download_file
         tar zxf $tmpfile --strip-components 1 -C $is_core_dir/bin
         chmod +x $is_core_bin
